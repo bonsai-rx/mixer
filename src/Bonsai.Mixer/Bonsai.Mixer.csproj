@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Title>Bonsai - Mixer</Title>
+    <Description>Bonsai Library containing modules for multi-channel audio capture and playback.</Description>
+    <PackageTags>Bonsai Rx Mixer PortAudio</PackageTags>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Bonsai.Core" Version="2.8.5" />
+    <PackageReference Include="PortAudioNet" Version="0.0.0-beta0" />
+  </ItemGroup>
+
+</Project>
