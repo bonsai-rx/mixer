@@ -17,7 +17,7 @@ namespace Bonsai.Mixer
             if (instance is null)
                 return base.GetStandardValues(context);
 
-            PortAudio.Initialize().ThrowIfFailure();
+            using var engine = PortAudioEngine.Initialize();
             int hostApiCount = PortAudio.GetHostApiCount();
             PortAudio.CheckReturn(hostApiCount);
 

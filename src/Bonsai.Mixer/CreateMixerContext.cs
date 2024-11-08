@@ -26,7 +26,7 @@ namespace Bonsai.Mixer
         {
             return Observable.Create<MixerStreamContext>(observer =>
             {
-                PortAudio.Initialize().ThrowIfFailure();
+                var engine = PortAudioEngine.Initialize();
                 int hostApiCount = PortAudio.GetHostApiCount();
                 PortAudio.CheckReturn(hostApiCount);
 
@@ -58,6 +58,7 @@ namespace Bonsai.Mixer
                 {
                     mixerStream.Stop();
                     mixerStream.Dispose();
+                    engine.Dispose();
                 });
             });
         }
