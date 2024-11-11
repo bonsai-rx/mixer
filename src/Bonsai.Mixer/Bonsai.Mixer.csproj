@@ -4,6 +4,7 @@
     <Title>Bonsai - Mixer</Title>
     <Description>Bonsai Library containing modules for multi-channel audio capture and playback.</Description>
     <PackageTags>Bonsai Rx Mixer PortAudio</PackageTags>
+    <PackageType>Dependency;BonsaiLibrary</PackageType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <TargetFramework>net472</TargetFramework>
