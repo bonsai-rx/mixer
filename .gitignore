@@ -2,4 +2,4 @@
 /artifacts/
 /bonsai/Packages/
 *.exe
-*.exe.settings
+*.exe.*
