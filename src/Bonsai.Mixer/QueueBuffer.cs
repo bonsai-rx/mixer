@@ -1,24 +1,21 @@
 ﻿using System;
-using System.ComponentModel;
 using System.Reactive.Linq;
 using System.Xml.Serialization;
+using OpenCV.Net;
 
 namespace Bonsai.Mixer
 {
     [ResetCombinator]
-    public class QueueBuffer : Sink<float[]>
+    public class QueueBuffer : Sink<Mat>
     {
-        [TypeConverter(typeof(UnidimensionalArrayConverter))]
-        public float[] ChannelScale { get; set; }
-
         [XmlIgnore]
         public MixerStreamContext Mixer { get; set; }
 
-        public override IObservable<float[]> Process(IObservable<float[]> source)
+        public override IObservable<Mat> Process(IObservable<Mat> source)
         {
             return source.Do(buffer =>
             {
-                Mixer?.QueueBuffer(buffer, ChannelScale);
+                Mixer?.QueueBuffer(buffer);
             });
         }
     }

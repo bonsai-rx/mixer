@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using OpenCV.Net;
 using PortAudioNet;
 
 namespace Bonsai.Mixer
@@ -47,20 +48,17 @@ namespace Bonsai.Mixer
 
         public double SampleRate { get; }
 
-        public void QueueBuffer(float[] samples, float[] channelScale)
+        public void QueueBuffer(Mat buffer)
         {
-            if (samples is null)
-                throw new ArgumentNullException(nameof(samples));
+            if (buffer is null)
+                throw new ArgumentNullException(nameof(buffer));
 
-            if (channelScale is null)
-                throw new ArgumentNullException(nameof(channelScale));
-
-            if (channelScale.Length != streamParameters.channelCount)
+            if (buffer.Rows != streamParameters.channelCount)
                 throw new ArgumentException(
-                    "The size of the scale vector must be the same as the number of channels.",
-                    nameof(channelScale));
+                    "The number of rows in the sample buffer must be the same as the number of channels.",
+                    nameof(buffer));
 
-            mixerBuffers.Add(new(samples, channelScale));
+            mixerBuffers.Add(new(buffer));
         }
 
         public void Start()

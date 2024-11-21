@@ -1,4 +1,5 @@
 ﻿using System;
+using OpenCV.Net;
 using PortAudioNet;
 
 namespace Bonsai.Mixer
@@ -7,27 +8,37 @@ namespace Bonsai.Mixer
     {
         int sampleIndex;
 
-        public MixerBufferContext(float[] samples, float[] channelScale)
+        public MixerBufferContext(Mat buffer)
         {
-            Samples = samples ?? throw new ArgumentNullException(nameof(samples));
-            ChannelScale = channelScale ?? throw new ArgumentNullException(nameof(channelScale));
+            Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
+            if (buffer.Depth != Depth.F32)
+            {
+                throw new ArgumentException(
+                    $"Invalid sample depth '{buffer.Depth}'. All samples must be {Depth.F32}",
+                    nameof(buffer));
+            }
         }
 
-        public float[] Samples { get; }
-
-        public float[] ChannelScale { get; }
+        public Mat Buffer { get; }
 
         public unsafe PaStreamCallbackResult StreamCallback(float* outputBuffer, uint frameCount, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
         {
-            for (int i = 0; i < frameCount && sampleIndex < Samples.Length; i++, sampleIndex++)
+            var bufferCols = Buffer.Cols;
+            var bufferRows = Buffer.Rows;
+            var numSamples = Math.Min(frameCount, bufferCols - sampleIndex);
+            Buffer.GetRawData(out IntPtr dataPtr, out int step);
+            var sampleBuffer = (float*)dataPtr.ToPointer();
+            var stepSamples = step / sizeof(float);
+
+            for (int i = 0; i < numSamples; i++)
             {
-                for (int channelIndex = 0; channelIndex < ChannelScale.Length; channelIndex++)
+                for (int channelIndex = 0; channelIndex < bufferRows; channelIndex++)
                 {
-                    outputBuffer[i * ChannelScale.Length + channelIndex] += Samples[sampleIndex] * ChannelScale[channelIndex];
+                    outputBuffer[i * bufferRows + channelIndex] += sampleBuffer[channelIndex * stepSamples + sampleIndex + i];
                 }
             }
-
-            return sampleIndex < Samples.Length ? PaStreamCallbackResult.Continue : PaStreamCallbackResult.Complete;
+            sampleIndex += (int)numSamples;
+            return sampleIndex < bufferCols ? PaStreamCallbackResult.Continue : PaStreamCallbackResult.Complete;
         }
     }
 }
