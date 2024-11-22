@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using OpenCV.Net;
 using PortAudioNet;
@@ -12,7 +11,7 @@ namespace Bonsai.Mixer
         private readonly PaStream* mixerStream;
         private readonly PaDeviceInfo* selectedDevice;
         private readonly PaStreamParameters streamParameters;
-        private readonly List<MixerBufferContext> mixerBuffers;
+        private readonly WorkQueue<MixerBufferContext> mixerBuffers;
 
         internal MixerStreamContext(int deviceIndex, double sampleRate)
         {
