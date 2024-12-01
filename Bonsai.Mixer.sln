@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Bonsai.Mixer", "src\Bonsai.Mixer\Bonsai.Mixer.csproj", "{BCD20A5C-468A-4D29-A4BB-E745B3E823FA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6302CC12-04C6-413C-81F8-B23DF8CF7594}"
+	ProjectSection(SolutionItems) = preProject
+		Directory.Build.props = Directory.Build.props
+		build\Version.props = build\Version.props
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BCD20A5C-468A-4D29-A4BB-E745B3E823FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCD20A5C-468A-4D29-A4BB-E745B3E823FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCD20A5C-468A-4D29-A4BB-E745B3E823FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCD20A5C-468A-4D29-A4BB-E745B3E823FA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
