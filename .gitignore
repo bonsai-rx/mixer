@@ -1,5 +1,3 @@
 .vs/
 /artifacts/
-/bonsai/Packages/
-*.exe
-*.exe.*
+*.user
