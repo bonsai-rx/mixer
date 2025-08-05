@@ -122,5 +122,12 @@ namespace Bonsai.Mixer
             mixerBuffers.Clear();
             handle.Free();
         }
+
+        public override string ToString()
+        {
+            return $"{nameof(MixerStreamContext)} {{ " +
+                   $"{nameof(SampleRate)} = {SampleRate}, " +
+                   $"{nameof(OutputLatency)} = {OutputLatency} }}";
+        }
     }
 }
