@@ -1,8 +1,5 @@
-﻿using Bonsai;
-using System;
+﻿using System;
 using System.ComponentModel;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reactive.Linq;
 using PortAudioNet;
 using System.Reactive.Disposables;
@@ -21,6 +18,8 @@ namespace Bonsai.Mixer
         public string DeviceName { get; set; }
 
         public double SampleRate { get; set; } = 48e3;
+
+        public double? SuggestedLatency { get; set; }
 
         public unsafe IObservable<MixerStreamContext> Generate()
         {
@@ -52,7 +51,7 @@ namespace Bonsai.Mixer
                     }
                 }
 
-                var mixerStream = new MixerStreamContext(selectedIndex, SampleRate);
+                var mixerStream = new MixerStreamContext(selectedIndex, SampleRate, SuggestedLatency);
                 observer.OnNext(mixerStream);
                 return Disposable.Create(() =>
                 {
