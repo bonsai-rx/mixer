@@ -55,7 +55,6 @@ namespace Bonsai.Mixer
                 observer.OnNext(mixerStream);
                 return Disposable.Create(() =>
                 {
-                    mixerStream.Stop();
                     mixerStream.Dispose();
                     engine.Dispose();
                 });
