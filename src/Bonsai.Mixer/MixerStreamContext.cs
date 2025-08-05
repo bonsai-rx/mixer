@@ -13,7 +13,7 @@ namespace Bonsai.Mixer
         private readonly PaStreamParameters streamParameters;
         private readonly WorkQueue<MixerBufferContext> mixerBuffers;
 
-        internal MixerStreamContext(int deviceIndex, double sampleRate)
+        internal MixerStreamContext(int deviceIndex, double sampleRate, double? suggestedLatency = null)
         {
             handle = GCHandle.Alloc(this);
             selectedDevice = PortAudio.GetDeviceInfo(deviceIndex);
@@ -22,7 +22,7 @@ namespace Bonsai.Mixer
                 device = deviceIndex,
                 channelCount = selectedDevice->maxOutputChannels,
                 sampleFormat = PaSampleFormat.Float32,
-                suggestedLatency = selectedDevice->defaultLowOutputLatency,
+                suggestedLatency = suggestedLatency ?? selectedDevice->defaultLowOutputLatency,
                 hostApiSpecificStreamInfo = null,
             };
 
@@ -39,13 +39,18 @@ namespace Bonsai.Mixer
                 (void*)GCHandle.ToIntPtr(handle)
             ).ThrowIfFailure();
 
+            var streamInfo = PortAudio.GetStreamInfo(stream);
+            SampleRate = streamInfo->sampleRate;
+            OutputLatency = streamInfo->outputLatency;
+
             mixerStream = stream;
             streamParameters = parameters;
-            SampleRate = sampleRate;
             mixerBuffers = new();
         }
 
         public double SampleRate { get; }
+
+        public double OutputLatency { get; }
 
         public void QueueBuffer(Mat buffer)
         {
