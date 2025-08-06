@@ -1,6 +1,6 @@
 # Bonsai - Mixer Library
 
-Bonsai Library containing modules for multi-channel audio mixed playback.
+`Bonsai.Mixer` provides operators for low-latency multi-channel audio playback with [PortAudio](https://www.portaudio.com/).
 
 ## Acknowledgments
 
