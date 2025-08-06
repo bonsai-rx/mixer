@@ -5,6 +5,10 @@ using PortAudioNet;
 
 namespace Bonsai.Mixer
 {
+    /// <summary>
+    /// Represents an audio mixer which allows asynchronous queueing of multiple buffers
+    /// for simultaneous playback over a single PortAudio output stream.
+    /// </summary>
     public unsafe class MixerStreamContext : IDisposable
     {
         private GCHandle handle;
@@ -48,10 +52,40 @@ namespace Bonsai.Mixer
             mixerBuffers = new();
         }
 
+        /// <summary>
+        /// Gets the sample rate of the stream, in samples per second.
+        /// </summary>
+        /// <remarks>
+        /// In cases where the hardware sample rate is inaccurate and PortAudio is aware of it,
+        /// the value of this field may be different from the sample rate parameter used to
+        /// initialize the mixer context.
+        /// </remarks>
         public double SampleRate { get; }
 
+        /// <summary>
+        /// Gets the output latency of the stream, in seconds.
+        /// </summary>
+        /// <remarks>
+        /// This value provides the most accurate estimate of output latency available to the implementation.
+        /// It may differ significantly from the suggested latency value.
+        /// </remarks>
         public double OutputLatency { get; }
 
+        /// <summary>
+        /// Adds a new buffer to the mixer stream context work queue.
+        /// </summary>
+        /// <remarks>
+        /// At any one moment when the mixer stream context is playing, the data streamed to PortAudio
+        /// will be the sum of all queued buffers being played.
+        /// </remarks>
+        /// <param name="buffer">
+        /// A multi-dimensional array containing the sample data, where each row vector represents data from
+        /// an individual channel to be mixed into the mixer output stream.
+        /// </param>
+        /// <exception cref="ArgumentNullException">Buffer is empty.</exception>
+        /// <exception cref="ArgumentException">
+        /// The number of rows in the buffer does not match the number of channels in the stream.
+        /// </exception>
         public void QueueBuffer(Mat buffer)
         {
             if (buffer is null)
@@ -65,11 +99,24 @@ namespace Bonsai.Mixer
             mixerBuffers.Add(new(buffer));
         }
 
+        /// <summary>
+        /// Initiates mixer audio processing.
+        /// </summary>
+        /// <remarks>
+        /// Any pre-queued buffers will begin playing simultaneously when the stream callback
+        /// starts requesting data.
+        /// </remarks>
         public void Start()
         {
             PortAudio.StartStream(mixerStream).ThrowIfFailure();
         }
 
+        /// <summary>
+        /// Stops mixer audio processing.
+        /// </summary>
+        /// <remarks>
+        /// The stream callback will stop requesting data.
+        /// </remarks>
         public void Stop()
         {
             PortAudio.StopStream(mixerStream).ThrowIfFailure();
@@ -116,6 +163,12 @@ namespace Bonsai.Mixer
             = (delegate* unmanaged[Cdecl]<void*, void*, uint, PaStreamCallbackTimeInfo*, PaStreamCallbackFlags, void*, PaStreamCallbackResult>)Marshal.GetFunctionPointerForDelegate(ManagedStreamCallback);
 #endif
 
+        /// <summary>
+        /// Disposes the mixer context and closes the audio stream.
+        /// </summary>
+        /// <remarks>
+        /// If the audio stream is active, it discards any pending buffers.
+        /// </remarks>
         public void Dispose()
         {
             PortAudio.CloseStream(mixerStream);
@@ -123,6 +176,7 @@ namespace Bonsai.Mixer
             handle.Free();
         }
 
+        /// <inheritdoc/>
         public override string ToString()
         {
             return $"{nameof(MixerStreamContext)} {{ " +

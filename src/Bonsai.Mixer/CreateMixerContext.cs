@@ -6,21 +6,65 @@ using System.Reactive.Disposables;
 
 namespace Bonsai.Mixer
 {
-    [Description("")]
+    /// <summary>
+    /// Represents an operator that creates a new mixer stream context used to control
+    /// simultaneous playback of multiple audio buffers.
+    /// </summary>
+    [Description("Creates a new mixer stream context used to control simultaneous playback of multiple audio buffers.")]
     [Combinator(MethodName = nameof(Generate))]
     [WorkflowElementCategory(ElementCategory.Source)]
     public class CreateMixerContext
     {
+        /// <summary>
+        /// Gets or sets the name of the host API that should be used to implement low-level audio processing.
+        /// </summary>
+        /// <remarks>
+        /// If neither <see cref="HostApi"/> nor <see cref="DeviceName"/> are specified, the
+        /// default output device will be selected.
+        /// </remarks>
         [TypeConverter(typeof(HostApiConverter))]
+        [Description("The name of the host API that should be used to implement low-level audio processing.")]
         public string HostApi { get; set; }
 
+        /// <summary>
+        /// Gets or sets the name of the device that should be used to implement low-level audio processing.
+        /// </summary>
+        /// <remarks>
+        /// If neither <see cref="HostApi"/> nor <see cref="DeviceName"/> are specified, the
+        /// default output device will be selected.
+        /// </remarks>
         [TypeConverter(typeof(DeviceNameConverter))]
+        [Description("The name of the device that should be used to implement low-level audio processing.")]
         public string DeviceName { get; set; }
 
+        /// <summary>
+        /// Gets or sets the desired sample rate of the output stream, in samples per second.
+        /// </summary>
+        [Description("The desired sample rate of the output stream, in samples per second.")]
         public double SampleRate { get; set; } = 48e3;
 
+        /// <summary>
+        /// Gets or sets the desired output latency, in seconds.
+        /// </summary>
+        /// <remarks>
+        /// If not specified, the default low output latency value for the selected device will be
+        /// used. Setting this value low may not guarantee workable playback. Testing and benchmarking
+        /// are always recommended to assess the minimum required latency.
+        /// </remarks>
+        [Description("The desired output latency, in seconds.")]
         public double? SuggestedLatency { get; set; }
 
+        /// <summary>
+        /// Generates an observable sequence that initializes and returns a new mixer stream context
+        /// object which can be used to control simultaneous playback of multiple audio buffers.
+        /// </summary>
+        /// <returns>
+        /// A sequence containing the <see cref="MixerStreamContext"/> object.
+        /// </returns>
+        /// <exception cref="InvalidOperationException">
+        /// The output sequence will emit an error if the specified target device or host API
+        /// cannot be found.
+        /// </exception>
         public unsafe IObservable<MixerStreamContext> Generate()
         {
             return Observable.Create<MixerStreamContext>(observer =>
