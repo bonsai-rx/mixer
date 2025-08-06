@@ -25,16 +25,18 @@ namespace Bonsai.Mixer
         {
             return Observable.Create<MixerStreamContext>(observer =>
             {
+                var targetHostApi = HostApi;
+                var targetDeviceName = DeviceName;
                 var engine = PortAudioEngine.Initialize();
                 int hostApiCount = PortAudio.GetHostApiCount();
                 PortAudio.CheckReturn(hostApiCount);
 
-                int selectedIndex = PortAudio.GetDefaultOutputDevice();
+                int selectedIndex = -1;
                 for (int hostIndex = 0; hostIndex < hostApiCount; hostIndex++)
                 {
                     PaHostApiInfo* hostApi = PortAudio.GetHostApiInfo(hostIndex);
                     string hostApiName = PortAudio.PtrToString(hostApi->name);
-                    if (hostApiName == HostApi)
+                    if (hostApiName == targetHostApi)
                     {
                         for (int hostDeviceIndex = 0; hostDeviceIndex < hostApi->deviceCount; hostDeviceIndex++)
                         {
@@ -44,12 +46,23 @@ namespace Bonsai.Mixer
                             if (device->maxOutputChannels > 0)
                             {
                                 var deviceName = PortAudio.PtrToString(device->name);
-                                if (deviceName == DeviceName)
+                                if (deviceName == targetDeviceName)
                                     selectedIndex = deviceIndex;
                             }
                         }
                     }
                 }
+
+                if (selectedIndex < 0)
+                    if (string.IsNullOrEmpty(targetHostApi) && string.IsNullOrEmpty(targetDeviceName))
+                        selectedIndex = PortAudio.GetDefaultOutputDevice();
+                    else if (string.IsNullOrEmpty(targetDeviceName))
+                        throw new InvalidOperationException("Device must be specified when selecting a host api.");
+                    else if (string.IsNullOrEmpty(targetHostApi))
+                        throw new InvalidOperationException("Host api must be specified when selecting a device name.");
+                    else
+                        throw new InvalidOperationException(
+                            $"Device '{targetDeviceName}' could not be found in '{targetHostApi}'.");
 
                 var mixerStream = new MixerStreamContext(selectedIndex, SampleRate, SuggestedLatency);
                 observer.OnNext(mixerStream);
