@@ -15,7 +15,7 @@ namespace Bonsai.Mixer
         private readonly PaStream* mixerStream;
         private readonly PaDeviceInfo* selectedDevice;
         private readonly PaStreamParameters streamParameters;
-        private readonly WorkQueue<MixerBufferContext> mixerBuffers;
+        private readonly WorkQueue<MixerSourceContext> mixerSources;
 
         internal MixerStreamContext(int deviceIndex, double sampleRate, double? suggestedLatency = null)
         {
@@ -49,7 +49,7 @@ namespace Bonsai.Mixer
 
             mixerStream = stream;
             streamParameters = parameters;
-            mixerBuffers = new();
+            mixerSources = new();
         }
 
         /// <summary>
@@ -72,31 +72,44 @@ namespace Bonsai.Mixer
         public double OutputLatency { get; }
 
         /// <summary>
-        /// Adds a new buffer to the mixer stream context work queue.
+        /// Plays an audio buffer as a one-shot source that is removed once it finishes playing.
         /// </summary>
         /// <remarks>
         /// At any one moment when the mixer stream context is playing, the data streamed to PortAudio
-        /// will be the sum of all queued buffers being played.
+        /// is the sum of all sources being played.
         /// </remarks>
         /// <param name="buffer">
         /// A multi-dimensional array containing the sample data, where each row vector represents data from
         /// an individual channel to be mixed into the mixer output stream.
         /// </param>
-        /// <exception cref="ArgumentNullException">Buffer is empty.</exception>
+        /// <exception cref="ArgumentNullException">The buffer is null.</exception>
         /// <exception cref="ArgumentException">
-        /// The number of rows in the buffer does not match the number of channels in the stream.
+        /// The number of rows does not match the number of channels in the stream, the buffer
+        /// contains no samples, or the sample depth is not 32-bit floating point.
         /// </exception>
-        public void QueueBuffer(Mat buffer)
+        public void PlayBuffer(Mat buffer)
         {
-            if (buffer is null)
-                throw new ArgumentNullException(nameof(buffer));
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, loop: false, removeOnComplete: true);
+            mixerSources.Add(source);
+        }
 
-            if (buffer.Rows != streamParameters.channelCount)
-                throw new ArgumentException(
-                    "The number of rows in the sample buffer must be the same as the number of channels.",
-                    nameof(buffer));
-
-            mixerBuffers.Add(new(buffer));
+        /// <summary>
+        /// Creates a new mixer source whose playback queue can be controlled independently of any
+        /// other source mixed into the output stream.
+        /// </summary>
+        /// <param name="loop">
+        /// True to loop the playback queue continuously; otherwise playback stops once all queued
+        /// buffers have played.
+        /// </param>
+        /// <returns>
+        /// A new <see cref="MixerSourceContext"/> used to queue buffers into the source and
+        /// control its playback.
+        /// </returns>
+        public MixerSourceContext CreateSource(bool loop)
+        {
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, loop, removeOnComplete: false);
+            mixerSources.Add(source);
+            return source;
         }
 
         /// <summary>
@@ -135,9 +148,9 @@ namespace Bonsai.Mixer
                 }
             }
 
-            mixerBuffers.RemoveAll(buffer =>
+            mixerSources.RemoveAll(source =>
             {
-                var result = buffer.StreamCallback(outputBuffer, frameCount, in localTimeInfo, statusFlags);
+                var result = source.StreamCallback(outputBuffer, frameCount, in localTimeInfo, statusFlags);
                 return result != PaStreamCallbackResult.Continue;
             });
 
@@ -172,7 +185,7 @@ namespace Bonsai.Mixer
         public void Dispose()
         {
             PortAudio.CloseStream(mixerStream);
-            mixerBuffers.Clear();
+            mixerSources.Clear();
             handle.Free();
         }
 
