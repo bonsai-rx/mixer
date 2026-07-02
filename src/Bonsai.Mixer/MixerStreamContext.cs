@@ -46,6 +46,7 @@ namespace Bonsai.Mixer
             var streamInfo = PortAudio.GetStreamInfo(stream);
             SampleRate = streamInfo->sampleRate;
             OutputLatency = streamInfo->outputLatency;
+            ChannelCount = parameters.channelCount;
 
             mixerStream = stream;
             streamParameters = parameters;
@@ -70,6 +71,15 @@ namespace Bonsai.Mixer
         /// It may differ significantly from the suggested latency value.
         /// </remarks>
         public double OutputLatency { get; }
+
+        /// <summary>
+        /// Gets the number of output channels in the stream.
+        /// </summary>
+        /// <remarks>
+        /// The stream is opened with the maximum number of output channels supported by the
+        /// selected device.
+        /// </remarks>
+        public int ChannelCount { get; }
 
         /// <summary>
         /// Plays an audio buffer as a one-shot source that is removed once it finishes playing.
@@ -194,7 +204,8 @@ namespace Bonsai.Mixer
         {
             return $"{nameof(MixerStreamContext)} {{ " +
                    $"{nameof(SampleRate)} = {SampleRate}, " +
-                   $"{nameof(OutputLatency)} = {OutputLatency} }}";
+                   $"{nameof(OutputLatency)} = {OutputLatency}, " +
+                   $"{nameof(ChannelCount)} = {ChannelCount} }}";
         }
     }
 }
