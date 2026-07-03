@@ -29,11 +29,13 @@ namespace Bonsai.Mixer
         int bufferIndex;
         int sampleIndex;
         bool stopping;
+        bool paused;
 
-        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool loop, bool removeOnComplete)
+        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool loop, bool paused, bool removeOnComplete)
         {
             this.channelCount = channelCount;
             this.loop = loop;
+            this.paused = paused;
             this.removeOnComplete = removeOnComplete;
             gain = new LinearRamp(sampleRate, 1f);
             if (initialBuffer is not null)
@@ -97,6 +99,31 @@ namespace Bonsai.Mixer
         }
 
         /// <summary>
+        /// Resumes playback of the source from its current position.
+        /// </summary>
+        /// <remarks>
+        /// Playback resumes from the buffer and sample where it was paused. Resuming a source
+        /// that is already playing has no effect.
+        /// </remarks>
+        public void Play()
+        {
+            commandQueue.Add(() => paused = false);
+        }
+
+        /// <summary>
+        /// Pauses playback of the source, holding its position until playback is resumed.
+        /// </summary>
+        /// <remarks>
+        /// The playback cursor and queued buffers are retained while paused, and the source
+        /// stops contributing to the output without being removed. Pausing a source that is
+        /// already paused has no effect.
+        /// </remarks>
+        public void Pause()
+        {
+            commandQueue.Add(() => paused = true);
+        }
+
+        /// <summary>
         /// Stops playback of the source, fading the gain to silence over the specified duration
         /// before the source is removed from the mixer.
         /// </summary>
@@ -119,6 +146,9 @@ namespace Bonsai.Mixer
                 command();
                 return true;
             });
+
+            if (paused)
+                return stopping ? PaStreamCallbackResult.Complete : PaStreamCallbackResult.Continue;
 
             int frame = 0;
             while (frame < frameCount)

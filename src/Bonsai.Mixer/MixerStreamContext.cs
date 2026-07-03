@@ -107,7 +107,7 @@ namespace Bonsai.Mixer
         /// </exception>
         public void PlayBuffer(Mat buffer)
         {
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, loop: false, removeOnComplete: true);
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, loop: false, paused: false, removeOnComplete: true);
             mixerSources.Add(source);
         }
 
@@ -119,13 +119,17 @@ namespace Bonsai.Mixer
         /// True to loop the playback queue continuously; otherwise playback stops once all queued
         /// buffers have played.
         /// </param>
+        /// <param name="initialState">
+        /// The initial playback state of the source.
+        /// </param>
         /// <returns>
         /// A new <see cref="MixerSourceContext"/> used to queue buffers into the source and
         /// control its playback.
         /// </returns>
-        public MixerSourceContext CreateSource(bool loop)
+        public MixerSourceContext CreateSource(bool loop, MixerSourceState initialState)
         {
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, loop, removeOnComplete: false);
+            var paused = initialState == MixerSourceState.Paused;
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, loop, paused, removeOnComplete: false);
             mixerSources.Add(source);
             return source;
         }
