@@ -17,14 +17,22 @@ namespace Bonsai.Mixer
         private readonly PaStreamParameters streamParameters;
         private readonly WorkQueue<MixerSourceContext> mixerSources;
 
-        internal MixerStreamContext(int deviceIndex, double sampleRate, double? suggestedLatency = null)
+        internal MixerStreamContext(int deviceIndex, double sampleRate, int? channelCount = null, double? suggestedLatency = null)
         {
             handle = GCHandle.Alloc(this);
             selectedDevice = PortAudio.GetDeviceInfo(deviceIndex);
+            var maxOutputChannels = selectedDevice->maxOutputChannels;
+            if (channelCount.HasValue && (channelCount.GetValueOrDefault() < 1 || channelCount.GetValueOrDefault() > maxOutputChannels))
+            {
+                throw new InvalidOperationException(
+                    $"The requested number of channels ({channelCount.GetValueOrDefault()}) is out of range; " +
+                    $"the device supports between 1 and {maxOutputChannels} output channels.");
+            }
+
             PaStreamParameters parameters = new()
             {
                 device = deviceIndex,
-                channelCount = selectedDevice->maxOutputChannels,
+                channelCount = channelCount ?? maxOutputChannels,
                 sampleFormat = PaSampleFormat.Float32,
                 suggestedLatency = suggestedLatency ?? selectedDevice->defaultLowOutputLatency,
                 hostApiSpecificStreamInfo = null,
