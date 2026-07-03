@@ -20,6 +20,12 @@ namespace Bonsai.Mixer
         public bool Loop { get; set; }
 
         /// <summary>
+        /// Gets or sets a value specifying the initial playback state of the source.
+        /// </summary>
+        [Description("The initial playback state of the source.")]
+        public MixerSourceState InitialState { get; set; }
+
+        /// <summary>
         /// Creates a new mixer source on every mixer stream context in an observable sequence.
         /// </summary>
         /// <param name="source">
@@ -33,7 +39,7 @@ namespace Bonsai.Mixer
         {
             return source.SelectMany(mixer => Observable.Create<MixerSourceContext>(observer =>
             {
-                var context = mixer.CreateSource(Loop);
+                var context = mixer.CreateSource(Loop, InitialState);
                 observer.OnNext(context);
                 return Disposable.Create(() => context.Stop(0));
             }));
