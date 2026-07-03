@@ -44,6 +44,15 @@ namespace Bonsai.Mixer
         public double SampleRate { get; set; } = 48e3;
 
         /// <summary>
+        /// Gets or sets the number of output channels to open the stream with.
+        /// </summary>
+        /// <remarks>
+        /// If not specified, the maximum number of channels supported by the selected device is used.
+        /// </remarks>
+        [Description("The number of output channels to open the stream with.")]
+        public int? ChannelCount { get; set; }
+
+        /// <summary>
         /// Gets or sets the desired output latency, in seconds.
         /// </summary>
         /// <remarks>
@@ -63,7 +72,7 @@ namespace Bonsai.Mixer
         /// </returns>
         /// <exception cref="InvalidOperationException">
         /// The output sequence will emit an error if the specified target device or host API
-        /// cannot be found.
+        /// cannot be found, or if the requested number of channels is not supported by the device.
         /// </exception>
         public unsafe IObservable<MixerStreamContext> Generate()
         {
@@ -108,7 +117,7 @@ namespace Bonsai.Mixer
                         throw new InvalidOperationException(
                             $"Device '{targetDeviceName}' could not be found in '{targetHostApi}'.");
 
-                var mixerStream = new MixerStreamContext(selectedIndex, SampleRate, SuggestedLatency);
+                var mixerStream = new MixerStreamContext(selectedIndex, SampleRate, ChannelCount, SuggestedLatency);
                 observer.OnNext(mixerStream);
                 return Disposable.Create(() =>
                 {
