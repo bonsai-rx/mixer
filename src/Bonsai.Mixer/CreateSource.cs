@@ -16,14 +16,21 @@ namespace Bonsai.Mixer
         /// <summary>
         /// Gets or sets a value specifying whether the source loops its playback queue continuously.
         /// </summary>
+        /// <remarks>
+        /// True to loop the playback queue continuously; otherwise playback stops once all queued
+        /// buffers have played.
+        /// </remarks>
         [Description("True to loop the playback queue continuously; otherwise playback stops once all queued buffers have played.")]
-        public bool Loop { get; set; }
+        public bool Looping { get; set; }
 
         /// <summary>
-        /// Gets or sets a value specifying the initial playback state of the source.
+        /// Gets or sets a value specifying whether the source starts playing immediately.
         /// </summary>
-        [Description("The initial playback state of the source.")]
-        public MixerSourceState InitialState { get; set; }
+        /// <remarks>
+        /// True to start the source playing immediately; otherwise the source starts paused.
+        /// </remarks>
+        [Description("True to start the source playing immediately; otherwise the source starts paused.")]
+        public bool Playing { get; set; } = true;
 
         /// <summary>
         /// Creates a new mixer source on every mixer stream context in an observable sequence.
@@ -39,7 +46,7 @@ namespace Bonsai.Mixer
         {
             return source.SelectMany(mixer => Observable.Create<MixerSourceContext>(observer =>
             {
-                var context = mixer.CreateSource(Loop, InitialState);
+                var context = mixer.CreateSource(Looping, Playing);
                 observer.OnNext(context);
                 return Disposable.Create(() => context.Stop(0));
             }));

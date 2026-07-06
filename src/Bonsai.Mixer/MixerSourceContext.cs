@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Reactive.Subjects;
 using OpenCV.Net;
 using PortAudioNet;
 
@@ -19,24 +20,29 @@ namespace Bonsai.Mixer
         const int BlockSize = 256;
 
         readonly int channelCount;
-        readonly bool loop;
+        readonly bool looping;
         readonly bool removeOnComplete;
         readonly List<Mat> buffers = new();
         readonly WorkQueue<Action> commandQueue = new();
         readonly LinearRamp gain;
         readonly float[] gainBlock = new float[BlockSize];
+        readonly BehaviorSubject<MixerSourceState> playbackState;
 
         int bufferIndex;
         int sampleIndex;
         bool stopping;
-        bool paused;
+        bool playing;
+        MixerSourceState currentState;
+        MixerSourceState reportedState;
 
-        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool loop, bool paused, bool removeOnComplete)
+        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool looping, bool playing, bool removeOnComplete)
         {
             this.channelCount = channelCount;
-            this.loop = loop;
-            this.paused = paused;
+            this.looping = looping;
+            this.playing = playing;
             this.removeOnComplete = removeOnComplete;
+            currentState = reportedState = playing ? MixerSourceState.Playing : MixerSourceState.Paused;
+            playbackState = new BehaviorSubject<MixerSourceState>(currentState);
             gain = new LinearRamp(sampleRate, 1f);
             if (initialBuffer is not null)
             {
@@ -107,7 +113,7 @@ namespace Bonsai.Mixer
         /// </remarks>
         public void Play()
         {
-            commandQueue.Add(() => paused = false);
+            commandQueue.Add(() => playing = true);
         }
 
         /// <summary>
@@ -120,7 +126,7 @@ namespace Bonsai.Mixer
         /// </remarks>
         public void Pause()
         {
-            commandQueue.Add(() => paused = true);
+            commandQueue.Add(() => playing = false);
         }
 
         /// <summary>
@@ -139,23 +145,65 @@ namespace Bonsai.Mixer
             });
         }
 
-        internal PaStreamCallbackResult StreamCallback(float* output, uint frameCount, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
+        /// <summary>
+        /// Gets an observable sequence that reports the playback state of the source, starting with
+        /// its current state and emitting each transition, then completing when the source is
+        /// removed from the mixer.
+        /// </summary>
+        /// <remarks>
+        /// Notifications are delivered off the audio thread. The sequence is backed by a
+        /// <see cref="BehaviorSubject{T}"/>, so a subscriber that connects late receives the current
+        /// state immediately.
+        /// </remarks>
+        internal IObservable<MixerSourceState> PlaybackState => playbackState;
+
+        internal bool TryGetStateChange(out MixerSourceState newState)
         {
-            commandQueue.RemoveAll(command =>
+            if (currentState != reportedState)
+            {
+                newState = reportedState = currentState;
+                return true;
+            }
+
+            newState = default;
+            return false;
+        }
+
+        internal void NotifyState(MixerSourceState newState)
+        {
+            playbackState.OnNext(newState);
+            if (newState == MixerSourceState.Stopped)
+                playbackState.OnCompleted();
+        }
+
+        internal void DispatchCommands()
+        {
+            commandQueue.DispatchReady(command =>
             {
                 command();
                 return true;
             });
+        }
 
-            if (paused)
-                return stopping ? PaStreamCallbackResult.Complete : PaStreamCallbackResult.Continue;
+        internal PaStreamCallbackResult StreamCallback(float* output, uint frameCount, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
+        {
+            DispatchCommands();
+
+            if (!playing)
+            {
+                if (stopping)
+                    return PaStreamCallbackResult.Complete;
+
+                currentState = MixerSourceState.Paused;
+                return PaStreamCallbackResult.Continue;
+            }
 
             int frame = 0;
             while (frame < frameCount)
             {
                 if (bufferIndex >= buffers.Count)
                 {
-                    if (loop && buffers.Count > 0)
+                    if (looping && buffers.Count > 0)
                     {
                         bufferIndex = 0;
                         sampleIndex = 0;
@@ -193,11 +241,20 @@ namespace Bonsai.Mixer
                 }
             }
 
-            var exhausted = bufferIndex >= buffers.Count && !(loop && buffers.Count > 0);
+            var exhausted = bufferIndex >= buffers.Count && !(looping && buffers.Count > 0);
             if (stopping)
-                return gain.IsCompleted || exhausted ? PaStreamCallbackResult.Complete : PaStreamCallbackResult.Continue;
+            {
+                if (gain.IsCompleted || exhausted)
+                    return PaStreamCallbackResult.Complete;
+
+                currentState = MixerSourceState.Playing;
+                return PaStreamCallbackResult.Continue;
+            }
+
             if (removeOnComplete && buffers.Count > 0 && exhausted)
                 return PaStreamCallbackResult.Complete;
+
+            currentState = exhausted ? MixerSourceState.Idle : MixerSourceState.Playing;
             return PaStreamCallbackResult.Continue;
         }
     }

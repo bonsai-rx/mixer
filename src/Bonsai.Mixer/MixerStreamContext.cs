@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using OpenCV.Net;
 using PortAudioNet;
 
@@ -16,6 +17,10 @@ namespace Bonsai.Mixer
         private readonly PaDeviceInfo* selectedDevice;
         private readonly PaStreamParameters streamParameters;
         private readonly WorkQueue<MixerSourceContext> mixerSources;
+        private readonly RingBuffer<PlaybackStateEvent> playbackEvents;
+        private readonly AutoResetEvent notificationSignal;
+        private readonly Thread notificationThread;
+        private volatile bool disposed;
 
         internal MixerStreamContext(int deviceIndex, double sampleRate, int? channelCount = null, double? suggestedLatency = null)
         {
@@ -59,6 +64,10 @@ namespace Bonsai.Mixer
             mixerStream = stream;
             streamParameters = parameters;
             mixerSources = new();
+            playbackEvents = new RingBuffer<PlaybackStateEvent>(1024);
+            notificationSignal = new AutoResetEvent(false);
+            notificationThread = new Thread(DeliverNotifications) { IsBackground = true, Name = "MixerNotifications" };
+            notificationThread.Start();
         }
 
         /// <summary>
@@ -107,7 +116,7 @@ namespace Bonsai.Mixer
         /// </exception>
         public void PlayBuffer(Mat buffer)
         {
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, loop: false, paused: false, removeOnComplete: true);
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, looping: false, playing: true, removeOnComplete: true);
             mixerSources.Add(source);
         }
 
@@ -115,21 +124,20 @@ namespace Bonsai.Mixer
         /// Creates a new mixer source whose playback queue can be controlled independently of any
         /// other source mixed into the output stream.
         /// </summary>
-        /// <param name="loop">
+        /// <param name="looping">
         /// True to loop the playback queue continuously; otherwise playback stops once all queued
         /// buffers have played.
         /// </param>
-        /// <param name="initialState">
-        /// The initial playback state of the source.
+        /// <param name="playing">
+        /// True to start the source playing immediately; otherwise the source starts paused.
         /// </param>
         /// <returns>
         /// A new <see cref="MixerSourceContext"/> used to queue buffers into the source and
         /// control its playback.
         /// </returns>
-        public MixerSourceContext CreateSource(bool loop, MixerSourceState initialState)
+        public MixerSourceContext CreateSource(bool looping, bool playing)
         {
-            var paused = initialState == MixerSourceState.Paused;
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, loop, paused, removeOnComplete: false);
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, looping, playing, removeOnComplete: false);
             mixerSources.Add(source);
             return source;
         }
@@ -143,6 +151,7 @@ namespace Bonsai.Mixer
         /// </remarks>
         public void Start()
         {
+            mixerSources.DispatchAll(source => { source.DispatchCommands(); return false; });
             PortAudio.StartStream(mixerStream).ThrowIfFailure();
         }
 
@@ -170,13 +179,42 @@ namespace Bonsai.Mixer
                 }
             }
 
-            mixerSources.RemoveAll(source =>
+            var notify = false;
+            mixerSources.DispatchReady(source =>
             {
                 var result = source.StreamCallback(outputBuffer, frameCount, in localTimeInfo, statusFlags);
-                return result != PaStreamCallbackResult.Continue;
+                if (result != PaStreamCallbackResult.Continue)
+                {
+                    playbackEvents.TryEnqueue(new PlaybackStateEvent(source, MixerSourceState.Stopped));
+                    notify = true;
+                    return true;
+                }
+
+                if (source.TryGetStateChange(out var newState))
+                {
+                    playbackEvents.TryEnqueue(new PlaybackStateEvent(source, newState));
+                    notify = true;
+                }
+
+                return false;
             });
 
+            if (notify)
+                notificationSignal.Set();
             return PaStreamCallbackResult.Continue;
+        }
+
+        private void DeliverNotifications()
+        {
+            while (true)
+            {
+                notificationSignal.WaitOne();
+                while (playbackEvents.TryDequeue(out var playbackEvent))
+                    playbackEvent.Source.NotifyState(playbackEvent.State);
+
+                if (disposed)
+                    break;
+            }
         }
 
 #if NET5_0_OR_GREATER
@@ -207,7 +245,15 @@ namespace Bonsai.Mixer
         public void Dispose()
         {
             PortAudio.CloseStream(mixerStream);
-            mixerSources.Clear();
+            disposed = true;
+            notificationSignal.Set();
+            notificationThread.Join();
+            mixerSources.DispatchAll(source =>
+            {
+                source.NotifyState(MixerSourceState.Stopped);
+                return true;
+            });
+            notificationSignal.Dispose();
             handle.Free();
         }
 
