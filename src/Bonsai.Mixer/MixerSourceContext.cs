@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Reactive.Subjects;
 using OpenCV.Net;
 using PortAudioNet;
@@ -22,7 +21,7 @@ namespace Bonsai.Mixer
         readonly int channelCount;
         readonly bool looping;
         readonly bool removeOnComplete;
-        readonly List<Mat> buffers = new();
+        readonly RingList<Mat> buffers = new();
         readonly WorkQueue<Action> commandQueue = new();
         readonly LinearRamp gain;
         readonly float[] gainBlock = new float[BlockSize];
@@ -239,6 +238,12 @@ namespace Bonsai.Mixer
                     bufferIndex++;
                     sampleIndex = 0;
                 }
+            }
+
+            if (!looping && !removeOnComplete && bufferIndex > 0)
+            {
+                buffers.RemoveRange(bufferIndex);
+                bufferIndex = 0;
             }
 
             var exhausted = bufferIndex >= buffers.Count && !(looping && buffers.Count > 0);
