@@ -13,6 +13,16 @@
         /// <summary>
         /// The source is paused, holding its playback cursor.
         /// </summary>
-        Paused
+        Paused,
+
+        /// <summary>
+        /// The source is playing but has no more samples to play.
+        /// </summary>
+        Idle,
+
+        /// <summary>
+        /// The source has been removed from the mixer.
+        /// </summary>
+        Stopped
     }
 }
