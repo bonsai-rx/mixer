@@ -26,7 +26,7 @@ namespace Bonsai.Mixer
 
         public bool IsCompleted => remainingSamples == 0;
 
-        public void RampTo(float target, double duration)
+        public void SetTarget(float target, double duration)
         {
             this.target = target;
             remainingSamples = (int)Math.Max(0, duration * sampleRate);
