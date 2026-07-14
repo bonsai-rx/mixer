@@ -33,6 +33,16 @@ namespace Bonsai.Mixer
         public bool Playing { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets the initial source gain, where 1 represents the original signal amplitude.
+        /// </summary>
+        /// <remarks>
+        /// The source starts at this gain rather than the default unity, so it can begin silent
+        /// for a clean fade-in, or at a chosen level.
+        /// </remarks>
+        [Description("The initial source gain, where 1 represents the original signal amplitude.")]
+        public float Gain { get; set; } = 1;
+
+        /// <summary>
         /// Creates a new mixer source on every mixer stream context in an observable sequence.
         /// </summary>
         /// <param name="source">
@@ -46,7 +56,7 @@ namespace Bonsai.Mixer
         {
             return source.SelectMany(mixer => Observable.Create<MixerSourceContext>(observer =>
             {
-                var context = mixer.CreateSource(Looping, Playing);
+                var context = mixer.CreateSource(Looping, Playing, Gain);
                 observer.OnNext(context);
                 return Disposable.Create(() => context.Stop(0));
             }));

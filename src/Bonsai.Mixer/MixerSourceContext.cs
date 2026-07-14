@@ -10,21 +10,19 @@ namespace Bonsai.Mixer
     /// </summary>
     /// <remarks>
     /// A source maintains an ordered queue of audio buffers played back through a single read
-    /// cursor, scaled by a per-channel gain that can vary over time. The source is an opaque
-    /// handle created by the mixer and controlled by downstream operators that append buffers,
-    /// set the gain, or stop playback.
+    /// cursor, scaled by a source gain and an independent per-channel gain, each of which can
+    /// vary over time. The source is an opaque handle created by the mixer and controlled by
+    /// downstream operators that append buffers, set the gain, or stop playback.
     /// </remarks>
     public unsafe class MixerSourceContext
     {
-        const int BlockSize = 256;
-
         readonly int channelCount;
         readonly bool looping;
         readonly bool removeOnComplete;
         readonly RingList<Mat> sourceBuffers = new();
         readonly WorkQueue<Action> commandQueue = new();
-        readonly LinearRamp[] gainRamps;
-        readonly float[] gainBuffer;
+        readonly LinearRamp sourceGain;
+        readonly LinearRamp[] channelGains;
         readonly BehaviorSubject<MixerSourceState> playbackState;
 
         int bufferIndex;
@@ -34,7 +32,7 @@ namespace Bonsai.Mixer
         MixerSourceState currentState;
         MixerSourceState reportedState;
 
-        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool looping, bool playing, bool removeOnComplete)
+        internal MixerSourceContext(int channelCount, double sampleRate, Mat initialBuffer, bool looping, bool playing, float initialGain, bool removeOnComplete)
         {
             this.channelCount = channelCount;
             this.looping = looping;
@@ -42,10 +40,10 @@ namespace Bonsai.Mixer
             this.removeOnComplete = removeOnComplete;
             currentState = reportedState = playing ? MixerSourceState.Playing : MixerSourceState.Paused;
             playbackState = new BehaviorSubject<MixerSourceState>(currentState);
-            gainRamps = new LinearRamp[channelCount];
+            sourceGain = new LinearRamp(sampleRate, initialGain);
+            channelGains = new LinearRamp[channelCount];
             for (int i = 0; i < channelCount; i++)
-                gainRamps[i] = new LinearRamp(sampleRate, 1f);
-            gainBuffer = new float[channelCount * BlockSize];
+                channelGains[i] = new LinearRamp(sampleRate, 1f);
             if (initialBuffer is not null)
             {
                 Validate(initialBuffer);
@@ -94,9 +92,13 @@ namespace Bonsai.Mixer
         }
 
         /// <summary>
-        /// Sets the gain of every output channel of the source to a new level over the specified
-        /// duration.
+        /// Sets the source gain to a new level over the specified duration.
         /// </summary>
+        /// <remarks>
+        /// The source gain scales every output channel uniformly and is independent of the
+        /// per-channel gain. The effective gain applied to a channel is the product of the source
+        /// gain and the per-channel gain for that channel.
+        /// </remarks>
         /// <param name="value">
         /// The gain level, where 1 represents the original signal amplitude.
         /// </param>
@@ -105,17 +107,17 @@ namespace Bonsai.Mixer
         /// </param>
         public void SetGain(float value, double duration)
         {
-            commandQueue.Add(() =>
-            {
-                for (int i = 0; i < gainRamps.Length; i++)
-                    gainRamps[i].SetTarget(value, duration);
-            });
+            commandQueue.Add(() => sourceGain.SetTarget(value, duration));
         }
 
         /// <summary>
-        /// Sets the gain of each output channel of the source to a separate level over the
-        /// specified duration.
+        /// Sets the per-channel gain of the source to a separate level for each output channel over
+        /// the specified duration.
         /// </summary>
+        /// <remarks>
+        /// The per-channel gain is independent of the source gain. The effective gain applied to a
+        /// channel is the product of the source gain and the per-channel gain for that channel.
+        /// </remarks>
         /// <param name="values">
         /// The gain level for each output channel, where 1 represents the original signal
         /// amplitude. The number of values must be equal to the number of channels.
@@ -127,7 +129,7 @@ namespace Bonsai.Mixer
         /// <exception cref="ArgumentException">
         /// The number of values is not equal to the number of channels.
         /// </exception>
-        public void SetGain(float[] values, double duration)
+        public void SetChannelGain(float[] values, double duration)
         {
             if (values is null)
                 throw new ArgumentNullException(nameof(values));
@@ -137,11 +139,10 @@ namespace Bonsai.Mixer
                     "The number of gain values must be equal to the number of channels.",
                     nameof(values));
 
-            var channelValues = (float[])values.Clone();
             commandQueue.Add(() =>
             {
-                for (int i = 0; i < gainRamps.Length; i++)
-                    gainRamps[i].SetTarget(channelValues[i], duration);
+                for (int i = 0; i < channelGains.Length; i++)
+                    channelGains[i].SetTarget(values[i], duration);
             });
         }
 
@@ -182,8 +183,7 @@ namespace Bonsai.Mixer
             commandQueue.Add(() =>
             {
                 stopping = true;
-                for (int i = 0; i < gainRamps.Length; i++)
-                    gainRamps[i].SetTarget(0f, fadeDuration);
+                sourceGain.SetTarget(0f, fadeDuration);
             });
         }
 
@@ -227,16 +227,7 @@ namespace Bonsai.Mixer
             });
         }
 
-        bool IsGainSettled()
-        {
-            for (int i = 0; i < gainRamps.Length; i++)
-                if (!gainRamps[i].IsCompleted)
-                    return false;
-
-            return true;
-        }
-
-        internal PaStreamCallbackResult StreamCallback(float* output, uint frameCount, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
+        internal PaStreamCallbackResult StreamCallback(float** output, uint frameCount, in RenderContext render, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
         {
             DispatchCommands();
 
@@ -250,6 +241,8 @@ namespace Bonsai.Mixer
             }
 
             int frame = 0;
+            float* sourceGainBuffer = render.SourceGainBuffer;
+            float* channelGainBuffer = render.ChannelGainBuffer;
             while (frame < frameCount)
             {
                 if (bufferIndex >= sourceBuffers.Count)
@@ -270,19 +263,19 @@ namespace Bonsai.Mixer
                 var bufferColumns = currentBuffer.Cols;
 
                 var available = bufferColumns - sampleIndex;
-                var count = Math.Min(Math.Min(available, (int)frameCount - frame), BlockSize);
-                for (int channel = 0; channel < channelCount; channel++)
-                    gainRamps[channel].Generate(gainBuffer.AsSpan(channel * BlockSize, count));
+                var count = Math.Min(Math.Min(available, (int)frameCount - frame), RenderContext.BlockSize);
+                sourceGain.Generate(new Span<float>(sourceGainBuffer, count));
 
-                for (int i = 0; i < count; i++)
+                for (int channel = 0; channel < channelCount; channel++)
                 {
-                    var sampleColumn = sampleIndex + i;
-                    var outputIndex = (frame + i) * channelCount;
-                    for (int channel = 0; channel < channelCount; channel++)
-                    {
-                        var row = bufferRows == 1 ? 0 : channel;
-                        output[outputIndex + channel] += gainBuffer[channel * BlockSize + i] * samples[row * stepSamples + sampleColumn];
-                    }
+                    var channelGain = channelGainBuffer + channel * RenderContext.BlockSize;
+                    channelGains[channel].Generate(new Span<float>(channelGain, count));
+
+                    var row = bufferRows == 1 ? 0 : channel;
+                    float* source = samples + row * stepSamples + sampleIndex;
+                    float* destination = output[channel] + frame;
+                    for (int i = 0; i < count; i++)
+                        destination[i] += sourceGainBuffer[i] * channelGain[i] * source[i];
                 }
 
                 sampleIndex += count;
@@ -303,7 +296,7 @@ namespace Bonsai.Mixer
             var exhausted = bufferIndex >= sourceBuffers.Count && !(looping && sourceBuffers.Count > 0);
             if (stopping)
             {
-                if (IsGainSettled() || exhausted)
+                if (sourceGain.IsCompleted || exhausted)
                     return PaStreamCallbackResult.Complete;
 
                 currentState = MixerSourceState.Playing;

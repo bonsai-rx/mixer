@@ -16,6 +16,9 @@ namespace Bonsai.Mixer
         private readonly PaStream* mixerStream;
         private readonly PaDeviceInfo* selectedDevice;
         private readonly PaStreamParameters streamParameters;
+        private readonly Mat sourceGainBuffer;
+        private readonly Mat channelGainBuffer;
+        private readonly RenderContext renderContext;
         private readonly WorkQueue<MixerSourceContext> mixerSources;
         private readonly RingBuffer<PlaybackStateEvent> playbackEvents;
         private readonly AutoResetEvent notificationSignal;
@@ -38,7 +41,7 @@ namespace Bonsai.Mixer
             {
                 device = deviceIndex,
                 channelCount = channelCount ?? maxOutputChannels,
-                sampleFormat = PaSampleFormat.Float32,
+                sampleFormat = PaSampleFormat.Float32 | PaSampleFormat.NonInterleaved,
                 suggestedLatency = suggestedLatency ?? selectedDevice->defaultLowOutputLatency,
                 hostApiSpecificStreamInfo = null,
             };
@@ -63,6 +66,14 @@ namespace Bonsai.Mixer
 
             mixerStream = stream;
             streamParameters = parameters;
+            sourceGainBuffer = new Mat(1, RenderContext.BlockSize, Depth.F32, 1);
+            channelGainBuffer = new Mat(parameters.channelCount, RenderContext.BlockSize, Depth.F32, 1);
+            sourceGainBuffer.GetRawData(out IntPtr sourceGainData, out _);
+            channelGainBuffer.GetRawData(out IntPtr channelGainData, out int channelGainStep);
+            if (channelGainStep != RenderContext.BlockSize * sizeof(float))
+                throw new InvalidOperationException(
+                    "The channel gain buffer must be allocated as a continuous matrix for the per-channel stride to be valid.");
+            renderContext = new RenderContext((float*)sourceGainData.ToPointer(), (float*)channelGainData.ToPointer());
             mixerSources = new();
             playbackEvents = new RingBuffer<PlaybackStateEvent>(1024);
             notificationSignal = new AutoResetEvent(false);
@@ -116,7 +127,7 @@ namespace Bonsai.Mixer
         /// </exception>
         public void PlayBuffer(Mat buffer)
         {
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, looping: false, playing: true, removeOnComplete: true);
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, buffer, looping: false, playing: true, initialGain: 1f, removeOnComplete: true);
             mixerSources.Add(source);
         }
 
@@ -131,13 +142,16 @@ namespace Bonsai.Mixer
         /// <param name="playing">
         /// True to start the source playing immediately; otherwise the source starts paused.
         /// </param>
+        /// <param name="initialGain">
+        /// The initial source gain, where 1 represents the original signal amplitude.
+        /// </param>
         /// <returns>
         /// A new <see cref="MixerSourceContext"/> used to queue buffers into the source and
         /// control its playback.
         /// </returns>
-        public MixerSourceContext CreateSource(bool looping, bool playing)
+        public MixerSourceContext CreateSource(bool looping, bool playing, float initialGain = 1)
         {
-            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, looping, playing, removeOnComplete: false);
+            var source = new MixerSourceContext(streamParameters.channelCount, SampleRate, initialBuffer: null, looping, playing, initialGain, removeOnComplete: false);
             mixerSources.Add(source);
             return source;
         }
@@ -168,21 +182,20 @@ namespace Bonsai.Mixer
 
         private PaStreamCallbackResult _StreamCallback(void* input, void* output, uint frameCount, in PaStreamCallbackTimeInfo timeInfo, PaStreamCallbackFlags statusFlags)
         {
-            float* outputBuffer = (float*)output;
+            float** outputChannels = (float**)output;
             PaStreamCallbackTimeInfo localTimeInfo = timeInfo;
 
-            for (int i = 0; i < frameCount; i++)
+            for (int channelIndex = 0; channelIndex < streamParameters.channelCount; channelIndex++)
             {
-                for (int channelIndex = 0; channelIndex < streamParameters.channelCount; channelIndex++)
-                {
-                    outputBuffer[i * streamParameters.channelCount + channelIndex] = 0;
-                }
+                var channelBuffer = outputChannels[channelIndex];
+                for (int i = 0; i < frameCount; i++)
+                    channelBuffer[i] = 0;
             }
 
             var notify = false;
             mixerSources.DispatchReady(source =>
             {
-                var result = source.StreamCallback(outputBuffer, frameCount, in localTimeInfo, statusFlags);
+                var result = source.StreamCallback(outputChannels, frameCount, in renderContext, in localTimeInfo, statusFlags);
                 if (result != PaStreamCallbackResult.Continue)
                 {
                     playbackEvents.TryEnqueue(new PlaybackStateEvent(source, MixerSourceState.Stopped));
@@ -254,6 +267,8 @@ namespace Bonsai.Mixer
                 return true;
             });
             notificationSignal.Dispose();
+            sourceGainBuffer.Dispose();
+            channelGainBuffer.Dispose();
             handle.Free();
         }
 

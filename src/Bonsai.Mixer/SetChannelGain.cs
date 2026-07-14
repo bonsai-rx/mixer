@@ -8,6 +8,11 @@ namespace Bonsai.Mixer
     /// Represents an operator that sets the per-channel gain of every mixer source in the sequence
     /// to a set of target levels over a specified duration.
     /// </summary>
+    /// <remarks>
+    /// The per-channel gain is independent of the source gain set by <see cref="SetGain"/>. The
+    /// effective gain applied to a channel is the product of the source gain and the per-channel
+    /// gain for that channel, so setting the source gain does not overwrite the per-channel levels.
+    /// </remarks>
     [Description("Sets the per-channel gain of every mixer source in the sequence to a set of target levels over a specified duration.")]
     public class SetChannelGain : Sink<MixerSourceContext>
     {
@@ -17,7 +22,7 @@ namespace Bonsai.Mixer
         /// </summary>
         [TypeConverter(typeof(UnidimensionalArrayConverter))]
         [Description("The target gain level for each output channel, where 1 represents the original signal amplitude.")]
-        public double[] Gain { get; set; }
+        public float[] Gain { get; set; }
 
         /// <summary>
         /// Gets or sets the duration of the gain ramp, in seconds.
@@ -49,11 +54,7 @@ namespace Bonsai.Mixer
                 if (gain is null)
                     throw new InvalidOperationException("The Gain property must specify a target level for each output channel.");
 
-                var targets = new float[gain.Length];
-                for (int i = 0; i < gain.Length; i++)
-                    targets[i] = (float)gain[i];
-
-                mixerSource.SetGain(targets, Duration);
+                mixerSource.SetChannelGain(gain, Duration);
             });
         }
     }
