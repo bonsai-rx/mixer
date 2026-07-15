@@ -6,7 +6,7 @@ using PortAudioNet;
 namespace Bonsai.Mixer
 {
     /// <summary>
-    /// Represents a single audio source playing as one voice over a mixer stream context.
+    /// Represents a single audio source playing as one voice over a mixer context.
     /// </summary>
     /// <remarks>
     /// A source maintains an ordered queue of audio buffers played back through a single read

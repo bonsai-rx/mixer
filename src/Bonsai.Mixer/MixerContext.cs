@@ -10,7 +10,7 @@ namespace Bonsai.Mixer
     /// Represents an audio mixer which allows asynchronous queueing of multiple buffers
     /// for simultaneous playback over a single PortAudio output stream.
     /// </summary>
-    public unsafe class MixerStreamContext : IDisposable
+    public unsafe class MixerContext : IDisposable
     {
         private GCHandle handle;
         private readonly PaStream* mixerStream;
@@ -25,7 +25,7 @@ namespace Bonsai.Mixer
         private readonly Thread notificationThread;
         private volatile bool disposed;
 
-        internal MixerStreamContext(int deviceIndex, double sampleRate, int? channelCount = null, double? suggestedLatency = null)
+        internal MixerContext(int deviceIndex, double sampleRate, int? channelCount = null, double? suggestedLatency = null)
         {
             handle = GCHandle.Alloc(this);
             selectedDevice = PortAudio.GetDeviceInfo(deviceIndex);
@@ -113,7 +113,7 @@ namespace Bonsai.Mixer
         /// Plays an audio buffer as a one-shot source that is removed once it finishes playing.
         /// </summary>
         /// <remarks>
-        /// At any one moment when the mixer stream context is playing, the data streamed to PortAudio
+        /// At any one moment when the mixer context is playing, the data streamed to PortAudio
         /// is the sum of all sources being played.
         /// </remarks>
         /// <param name="buffer">
@@ -236,7 +236,7 @@ namespace Bonsai.Mixer
         private static PaStreamCallbackResult _StreamCallback(void* input, void* output, uint frameCount, PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData)
         {
             GCHandle handle = GCHandle.FromIntPtr((IntPtr)userData);
-            MixerStreamContext generator = ((MixerStreamContext)handle.Target!);
+            MixerContext generator = ((MixerContext)handle.Target!);
             return generator._StreamCallback(input, output, frameCount, in *timeInfo, statusFlags);
         }
 
@@ -275,7 +275,7 @@ namespace Bonsai.Mixer
         /// <inheritdoc/>
         public override string ToString()
         {
-            return $"{nameof(MixerStreamContext)} {{ " +
+            return $"{nameof(MixerContext)} {{ " +
                    $"{nameof(SampleRate)} = {SampleRate}, " +
                    $"{nameof(OutputLatency)} = {OutputLatency}, " +
                    $"{nameof(ChannelCount)} = {ChannelCount} }}";

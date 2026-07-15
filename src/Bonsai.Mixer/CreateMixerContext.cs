@@ -7,10 +7,10 @@ using System.Reactive.Disposables;
 namespace Bonsai.Mixer
 {
     /// <summary>
-    /// Represents an operator that creates a new mixer stream context used to control
+    /// Represents an operator that creates a new mixer context used to control
     /// simultaneous playback of multiple audio buffers.
     /// </summary>
-    [Description("Creates a new mixer stream context used to control simultaneous playback of multiple audio buffers.")]
+    [Description("Creates a new mixer context used to control simultaneous playback of multiple audio buffers.")]
     [Combinator(MethodName = nameof(Generate))]
     [WorkflowElementCategory(ElementCategory.Source)]
     public class CreateMixerContext
@@ -64,19 +64,19 @@ namespace Bonsai.Mixer
         public double? SuggestedLatency { get; set; }
 
         /// <summary>
-        /// Generates an observable sequence that initializes and returns a new mixer stream context
+        /// Generates an observable sequence that initializes and returns a new mixer context
         /// object which can be used to control simultaneous playback of multiple audio buffers.
         /// </summary>
         /// <returns>
-        /// A sequence containing the <see cref="MixerStreamContext"/> object.
+        /// A sequence containing the <see cref="MixerContext"/> object.
         /// </returns>
         /// <exception cref="InvalidOperationException">
         /// The output sequence will emit an error if the specified target device or host API
         /// cannot be found, or if the requested number of channels is not supported by the device.
         /// </exception>
-        public unsafe IObservable<MixerStreamContext> Generate()
+        public unsafe IObservable<MixerContext> Generate()
         {
-            return Observable.Create<MixerStreamContext>(observer =>
+            return Observable.Create<MixerContext>(observer =>
             {
                 var targetHostApi = HostApi;
                 var targetDeviceName = DeviceName;
@@ -117,7 +117,7 @@ namespace Bonsai.Mixer
                         throw new InvalidOperationException(
                             $"Device '{targetDeviceName}' could not be found in '{targetHostApi}'.");
 
-                var mixerStream = new MixerStreamContext(selectedIndex, SampleRate, ChannelCount, SuggestedLatency);
+                var mixerStream = new MixerContext(selectedIndex, SampleRate, ChannelCount, SuggestedLatency);
                 observer.OnNext(mixerStream);
                 return Disposable.Create(() =>
                 {

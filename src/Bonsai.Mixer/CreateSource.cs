@@ -6,11 +6,11 @@ using System.Reactive.Linq;
 namespace Bonsai.Mixer
 {
     /// <summary>
-    /// Represents an operator that creates a new mixer source on every mixer stream context in
+    /// Represents an operator that creates a new mixer source on every mixer context in
     /// the sequence.
     /// </summary>
     [Combinator]
-    [Description("Creates a new mixer source on every mixer stream context in the sequence.")]
+    [Description("Creates a new mixer source on every mixer context in the sequence.")]
     public class CreateSource
     {
         /// <summary>
@@ -43,16 +43,16 @@ namespace Bonsai.Mixer
         public float Gain { get; set; } = 1;
 
         /// <summary>
-        /// Creates a new mixer source on every mixer stream context in an observable sequence.
+        /// Creates a new mixer source on every mixer context in an observable sequence.
         /// </summary>
         /// <param name="source">
-        /// A sequence of <see cref="MixerStreamContext"/> objects on which to create the audio source.
+        /// A sequence of <see cref="MixerContext"/> objects on which to create the audio source.
         /// </param>
         /// <returns>
         /// An observable sequence of <see cref="MixerSourceContext"/> objects, one created on each
-        /// mixer stream context in the <paramref name="source"/> sequence, used to control playback.
+        /// mixer context in the <paramref name="source"/> sequence, used to control playback.
         /// </returns>
-        public IObservable<MixerSourceContext> Process(IObservable<MixerStreamContext> source)
+        public IObservable<MixerSourceContext> Process(IObservable<MixerContext> source)
         {
             return source.SelectMany(mixer => Observable.Create<MixerSourceContext>(observer =>
             {
