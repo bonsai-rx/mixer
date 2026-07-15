@@ -5,7 +5,7 @@
     <Description>Bonsai Library containing modules for multi-channel audio capture and playback.</Description>
 
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFrameworks>net472</TargetFrameworks>
   </PropertyGroup>
 
   <ItemGroup>
