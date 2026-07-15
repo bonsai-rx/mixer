@@ -37,6 +37,10 @@ Below is a small workflow to open a mixer, start it, and play a single buffer.
 - [Gain control](xref:gain-control): set volume and position a source across the output channels.
 - [How the mixer works](xref:audio-model): the audio callback model, buffer format, and what to keep off the audio thread.
 
+## Acknowledgments
+
+Development of this package was supported by funding from the Coen Lab at University College London.
+
 [`CreateMixerContext`]: xref:Bonsai.Mixer.CreateMixerContext
 [`StartMixer`]: xref:Bonsai.Mixer.StartMixer
 [`PlayBuffer`]: xref:Bonsai.Mixer.PlayBuffer
