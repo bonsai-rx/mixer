@@ -1,0 +1,121 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WorkflowBuilder Version="2.9.0"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xmlns:p1="clr-namespace:Bonsai.Mixer;assembly=Bonsai.Mixer"
+                 xmlns:rx="clr-namespace:Bonsai.Reactive;assembly=Bonsai.Core"
+                 xmlns:dsp="clr-namespace:Bonsai.Dsp;assembly=Bonsai.Dsp"
+                 xmlns="https://bonsai-rx.org/2018/workflow">
+  <Workflow>
+    <Nodes>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:CreateMixerContext">
+          <p1:HostApi />
+          <p1:DeviceName />
+          <p1:SampleRate>48000</p1:SampleRate>
+          <p1:ChannelCount>2</p1:ChannelCount>
+          <p1:SuggestedLatency xsi:nil="true" />
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:StartMixer" />
+      </Expression>
+      <Expression xsi:type="rx:BehaviorSubject">
+        <Name>Mixer</Name>
+      </Expression>
+      <Expression xsi:type="SubscribeSubject">
+        <Name>Mixer</Name>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:CreateSource">
+          <p1:Looping>true</p1:Looping>
+          <p1:Playing>true</p1:Playing>
+          <p1:Gain>1</p1:Gain>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="rx:BehaviorSubject">
+        <Name>Source</Name>
+      </Expression>
+      <Expression xsi:type="SubscribeSubject">
+        <Name>Mixer</Name>
+      </Expression>
+      <Expression xsi:type="MemberSelector">
+        <Selector>SampleRate</Selector>
+      </Expression>
+      <Expression xsi:type="PropertyMapping">
+        <PropertyMappings>
+          <Property Name="SampleRate" />
+        </PropertyMappings>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="dsp:FunctionGenerator">
+          <dsp:BufferLength>48000</dsp:BufferLength>
+          <dsp:Frequency>440</dsp:Frequency>
+          <dsp:Waveform>Sine</dsp:Waveform>
+          <dsp:SampleRate>48000</dsp:SampleRate>
+          <dsp:Depth>F32</dsp:Depth>
+          <dsp:Amplitude>1</dsp:Amplitude>
+          <dsp:Offset>0</dsp:Offset>
+          <dsp:Phase>0</dsp:Phase>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Take">
+          <rx:Count>1</rx:Count>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="SubscribeSubject">
+        <Name>Source</Name>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:AppendBuffer" />
+      </Expression>
+      <Expression xsi:type="SubscribeSubject">
+        <Name>Source</Name>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Delay">
+          <rx:DueTime>PT2S</rx:DueTime>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:SetChannelGain">
+          <p1:Gain>
+            <p1:float>1</p1:float>
+            <p1:float>0</p1:float>
+          </p1:Gain>
+          <p1:Duration>0.5</p1:Duration>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="rx:Delay">
+          <rx:DueTime>PT2S</rx:DueTime>
+        </Combinator>
+      </Expression>
+      <Expression xsi:type="Combinator">
+        <Combinator xsi:type="p1:SetChannelGain">
+          <p1:Gain>
+            <p1:float>0</p1:float>
+            <p1:float>1</p1:float>
+          </p1:Gain>
+          <p1:Duration>0.5</p1:Duration>
+        </Combinator>
+      </Expression>
+    </Nodes>
+    <Edges>
+      <Edge From="0" To="1" Label="Source1" />
+      <Edge From="1" To="2" Label="Source1" />
+      <Edge From="3" To="4" Label="Source1" />
+      <Edge From="4" To="5" Label="Source1" />
+      <Edge From="6" To="7" Label="Source1" />
+      <Edge From="7" To="8" Label="Source1" />
+      <Edge From="8" To="9" Label="Source1" />
+      <Edge From="9" To="10" Label="Source1" />
+      <Edge From="10" To="12" Label="Source1" />
+      <Edge From="11" To="12" Label="Source2" />
+      <Edge From="13" To="14" Label="Source1" />
+      <Edge From="14" To="15" Label="Source1" />
+      <Edge From="15" To="16" Label="Source1" />
+      <Edge From="16" To="17" Label="Source1" />
+    </Edges>
+  </Workflow>
+</WorkflowBuilder>
