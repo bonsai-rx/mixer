@@ -18,6 +18,7 @@ namespace Bonsai.Mixer
         private readonly PaStreamParameters streamParameters;
         private readonly Mat sourceGainBuffer;
         private readonly Mat channelGainBuffer;
+        private readonly Mat transitionGainBuffer;
         private readonly RenderContext renderContext;
         private readonly WorkQueue<MixerSourceContext> mixerSources;
         private readonly RingBuffer<PlaybackStateEvent> playbackEvents;
@@ -68,12 +69,17 @@ namespace Bonsai.Mixer
             streamParameters = parameters;
             sourceGainBuffer = new Mat(1, RenderContext.BlockSize, Depth.F32, 1);
             channelGainBuffer = new Mat(parameters.channelCount, RenderContext.BlockSize, Depth.F32, 1);
+            transitionGainBuffer = new Mat(1, RenderContext.BlockSize, Depth.F32, 1);
             sourceGainBuffer.GetRawData(out IntPtr sourceGainData, out _);
             channelGainBuffer.GetRawData(out IntPtr channelGainData, out int channelGainStep);
+            transitionGainBuffer.GetRawData(out IntPtr transitionGainData, out _);
             if (channelGainStep != RenderContext.BlockSize * sizeof(float))
                 throw new InvalidOperationException(
                     "The channel gain buffer must be allocated as a continuous matrix for the per-channel stride to be valid.");
-            renderContext = new RenderContext((float*)sourceGainData.ToPointer(), (float*)channelGainData.ToPointer());
+            renderContext = new RenderContext(
+                (float*)sourceGainData.ToPointer(),
+                (float*)channelGainData.ToPointer(),
+                (float*)transitionGainData.ToPointer());
             mixerSources = new();
             playbackEvents = new RingBuffer<PlaybackStateEvent>(1024);
             notificationSignal = new AutoResetEvent(false);
@@ -269,6 +275,7 @@ namespace Bonsai.Mixer
             notificationSignal.Dispose();
             sourceGainBuffer.Dispose();
             channelGainBuffer.Dispose();
+            transitionGainBuffer.Dispose();
             handle.Free();
         }
 

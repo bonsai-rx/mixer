@@ -28,6 +28,16 @@ The workflow below shows the looping case, appending a generated tone to a loopi
 ![Looping a source](~/workflows/sources-looping.bonsai)
 :::
 
+## Mixing sources
+
+Every source created on a mixer context plays at the same time, and the output is the sum of all of them. Each source keeps its own queue, gain and playback state, so one can be paused, cleared or replaced without touching the others. This is how a background sound and a stimulus share one output device: the background goes on a looping source, and each stimulus is appended to a second source, which plays on top of it.
+
+The workflow below creates two sources. The background source loops a quiet low tone. Two seconds later a higher tone is placed on top of the first source with [`ReplaceBuffer`], and half a second after that a second tone replaces it, cutting the first one short with a brief fade while the background carries on unchanged. The amplitudes of the sources are added at the output. Keep their sum within the -1 to 1 range to avoid distortion.
+
+:::workflow
+![Mixing a background and a foreground source](~/workflows/sources-mixing.bonsai)
+:::
+
 ## Buffer format
 
 An audio buffer is a [`Mat`] of 32-bit floating-point samples normalized to the range -1 to 1, where 1 is full-scale amplitude. Its columns run along time, and the row count decides how the buffer maps to the output channels:
@@ -42,6 +52,7 @@ Any other row count is rejected, as is a buffer with no samples or a sample dept
 
 [`CreateSource`]: xref:Bonsai.Mixer.CreateSource
 [`AppendBuffer`]: xref:Bonsai.Mixer.AppendBuffer
+[`ReplaceBuffer`]: xref:Bonsai.Mixer.ReplaceBuffer
 [`PlayBuffer`]: xref:Bonsai.Mixer.PlayBuffer
 [`PlaySource`]: xref:Bonsai.Mixer.PlaySource
 [`Mat`]: xref:OpenCV.Net.Mat

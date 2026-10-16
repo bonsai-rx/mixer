@@ -26,6 +26,8 @@ namespace Bonsai.Mixer
 
         public bool IsCompleted => remainingSamples == 0;
 
+        public int RemainingSamples => remainingSamples;
+
         public void SetTarget(float target, double duration)
         {
             this.target = target;
